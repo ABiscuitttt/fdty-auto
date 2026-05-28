@@ -21,4 +21,6 @@ ocr_result.json
 raw_text.txt
 /tmp/
 .oss_credentials
-bin/
+bin/ossutil
+.claude/
+.github/copilot-instructions.md

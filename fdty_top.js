@@ -63,6 +63,31 @@
   var API_KEY = window.__DEEPSEEK_KEY || '';
   var API_URL = 'https://api.deepseek.com/chat/completions';
   var ZHIPU_KEY = window.__ZHIPU_KEY || '';
+  var MAX_CONCURRENCY = 5;
+
+  // 并发限制器：同时对最多 limit 个 item 执行 fn，其余排队
+  function concurrentMap(items, limit, fn) {
+    return new Promise(function(resolve) {
+      var results = new Array(items.length);
+      var running = 0, idx = 0, done = 0, total = items.length;
+      if (total === 0) { resolve(results); return; }
+
+      function next() {
+        while (running < limit && idx < total) {
+          var i = idx++;
+          running++;
+          fn(items[i], i).then(function(r) {
+            results[i] = r;
+            running--;
+            done++;
+            if (done === total) resolve(results);
+            else next();
+          });
+        }
+      }
+      next();
+    });
+  }
 
   function webSearch(query) {
     if (!ZHIPU_KEY) return Promise.resolve([]);
@@ -311,14 +336,14 @@
 
   // ============ Phase 1 & 2 ============
   function startVoting() {
-    log(questions.length + ' 题 每题3票 共' + (questions.length*3) + '次并发' +
+    log(questions.length + ' 题 每题3票 | 并发窗口=' + MAX_CONCURRENCY +
       (relevanceMap ? ' (RAG)' : ''), '#1a73e8');
 
     var totalOk = 0;
     var done1 = 0;
     var temps = [0.1, 0.6, 1.2];
 
-    var phase1Jobs = questions.map(function(q) {
+    concurrentMap(questions, MAX_CONCURRENCY, function(q) {
       var ctx = getKnowledge(q);
       var batch = [];
       for (var i = 0; i < 3; i++) batch.push(callAPI([q], temps[i], ctx));
@@ -338,9 +363,7 @@
         }
         return { q: q, best: best, count: max, counts: counts };
       });
-    });
-
-    Promise.all(phase1Jobs).then(function(results) {
+    }).then(function(results) {
       clearProgress();
       streamClear();
 
@@ -358,7 +381,7 @@
 
       var unresolved = [];
       var phase2Ok = 0;
-      var phase2Jobs = disputed.map(function(q) {
+      concurrentMap(disputed, MAX_CONCURRENCY, function(q) {
         // 先搜索，拿到结果后再投票
         var searchQuery = q.text.replace(/[^一-龥a-zA-Z0-9]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 60);
         return webSearch(searchQuery).then(function(searchResults) {
@@ -387,7 +410,7 @@
         });
       });
 
-      return Promise.all(phase2Jobs).then(function() {
+      }).then(function() {
         clearProgress();
         streamClear();
         if (unresolved.length > 0) {
