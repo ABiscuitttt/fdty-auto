@@ -23,9 +23,10 @@
   var panel_el = doc.createElement('div');
   panel_el.id = 'fdty-panel';
   panel_el.style.cssText = 'position:fixed;top:8px;right:8px;z-index:99999;background:#fff;color:#333;padding:8px 12px;border:1px solid #ccc;font:12px/1.5 monospace;min-width:220px;max-width:360px;pointer-events:none';
-  panel_el.innerHTML = '<div id="fdty-msg"></div>';
+  panel_el.innerHTML = '<div id="fdty-msg"></div><div id="fdty-progress" style="color:#999;font-size:11px"></div>';
   doc.body.appendChild(panel_el);
   var msg_el = doc.getElementById('fdty-msg');
+  var progress_el = doc.getElementById('fdty-progress');
 
   function log(msg, color) {
     console.log('[fdty] ' + msg);
@@ -34,6 +35,15 @@
     line.style.color = color;
     line.textContent = msg;
     msg_el.appendChild(line);
+  }
+
+  function progress(msg) {
+    console.log('[fdty] ' + msg);
+    progress_el.textContent = msg;
+  }
+
+  function clearProgress() {
+    progress_el.textContent = '';
   }
 
   var API_KEY = window.__DEEPSEEK_KEY || '';
@@ -162,12 +172,22 @@
   }
   var temps = [0.5 + Math.random() * 0.4, 0.5 + Math.random() * 0.4, 0.5 + Math.random() * 0.4];
 
+  var totalCalls = chunks.length * temps.length;
+  var doneCalls = 0;
   var phase1Calls = [];
   chunks.forEach(function(chunk) {
-    temps.forEach(function(temp) { phase1Calls.push(callAPI(chunk, temp)); });
+    temps.forEach(function(temp) {
+      var p = callAPI(chunk, temp).then(function(r) {
+        doneCalls++;
+        progress('投票 ' + doneCalls + '/' + totalCalls + ' 完成...');
+        return r;
+      });
+      phase1Calls.push(p);
+    });
   });
 
   Promise.all(phase1Calls).then(function(allResults) {
+    clearProgress();
     var votes = {};
     questions.forEach(function(q) { votes[String(q.num)] = []; });
 
@@ -204,6 +224,7 @@
 
     var unresolved = [];
     var phase2Ok = 0;
+    var phase2Done = 0;
     var phase2Jobs = disputed.map(function(q) {
       var batch = [];
       for (var i = 0; i < 10; i++) batch.push(callAPI([q], 0.7));
@@ -216,6 +237,8 @@
         var best = '', max = 0;
         Object.keys(counts).forEach(function(k) { if (counts[k] > max) { max = counts[k]; best = k; } });
 
+        phase2Done++;
+        progress('仲裁 ' + phase2Done + '/' + disputed.length + ' 题完成...');
         if (best && max >= 8) {
           if (selectAnswer(q, best)) { totalOk++; phase2Ok++; }
         } else {
@@ -225,6 +248,7 @@
     });
 
     return Promise.all(phase2Jobs).then(function() {
+      clearProgress();
       if (unresolved.length > 0) {
         unresolved.forEach(function(r) {
           var parts = [];
