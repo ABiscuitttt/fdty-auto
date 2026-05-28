@@ -4,18 +4,33 @@
   var T0 = Date.now();
   function ts() { return ((Date.now() - T0) / 1000).toFixed(1) + 's'; }
 
+  // ============ 定位 paper frame ============
+  var doc = document;
+  try {
+    var f = document.getElementById('paper') || document.querySelector('frame[name="paper"]') || window.frames['paper'];
+    if (f) doc = f.contentDocument || f.contentWindow.document;
+  } catch(e) {}
+  if (!doc.getElementById('Panel3')) {
+    for (var fi = 0; fi < window.frames.length; fi++) {
+      try {
+        var fd = window.frames[fi].document;
+        if (fd.getElementById('Panel3')) { doc = fd; break; }
+      } catch(e) {}
+    }
+  }
+
   // ============ 悬浮面板 ============
-  var panel_el = document.createElement('div');
+  var panel_el = doc.createElement('div');
   panel_el.id = 'fdty-panel';
   panel_el.style.cssText = 'position:fixed;top:8px;left:8px;z-index:99999;background:rgba(0,0,0,0.82);color:#fff;padding:10px 14px;border-radius:8px;font:12px/1.6 monospace;min-width:220px;max-width:320px;box-shadow:0 2px 12px rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.15);pointer-events:none';
   panel_el.innerHTML = '<div style="font-weight:bold;color:#4fc3f7;margin-bottom:4px">fdty 答题中...</div><div id="fdty-msg"></div>';
-  document.body.appendChild(panel_el);
-  var msg_el = document.getElementById('fdty-msg');
+  doc.body.appendChild(panel_el);
+  var msg_el = doc.getElementById('fdty-msg');
 
   function log(msg, color) {
     console.log('[fdty] ' + msg);
     if (!color) color = '#ccc';
-    var line = document.createElement('div');
+    var line = doc.createElement('div');
     line.style.color = color;
     line.textContent = msg;
     msg_el.appendChild(line);
@@ -36,13 +51,6 @@
     '是非题回答"对"或"错"，单选题回答字母A/B/C/D。',
     '只输出纯JSON，格式: {"题号":"答案",...}，不要markdown包裹，不要解释。'
   ].join('\n');
-
-  // ============ 定位 paper frame ============
-  var doc = document;
-  try {
-    var f = document.getElementById('paper') || document.querySelector('frame[name="paper"]') || window.frames['paper'];
-    if (f) doc = f.contentDocument || f.contentWindow.document;
-  } catch(e) {}
 
   var panel = doc.getElementById('Panel3');
   if (!panel) { log('Panel3 not found', '#ff5252'); return; }
