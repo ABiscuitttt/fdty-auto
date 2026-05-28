@@ -98,7 +98,7 @@
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + API_KEY },
       body: JSON.stringify({
-        model: 'deepseek-v4-pro',
+        model: 'deepseek-v4-flash',
         temperature: temp,
         messages: [
           { role: 'system', content: SYSTEM_PROMPT },
