@@ -128,7 +128,8 @@
       body: JSON.stringify({
         model: 'deepseek-v4-flash',
         temperature: temp,
-        thinking: { type: 'disabled' },
+        thinking: { type: 'enabled' },
+        reasoning_effort: 'max',
         max_tokens: 4096,
         response_format: { type: 'json_object' },
         messages: [
