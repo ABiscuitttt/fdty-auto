@@ -4,6 +4,23 @@
   var T0 = Date.now();
   function ts() { return ((Date.now() - T0) / 1000).toFixed(1) + 's'; }
 
+  // ============ 悬浮面板 ============
+  var panel_el = document.createElement('div');
+  panel_el.id = 'fdty-panel';
+  panel_el.style.cssText = 'position:fixed;top:8px;left:8px;z-index:99999;background:rgba(0,0,0,0.82);color:#fff;padding:10px 14px;border-radius:8px;font:12px/1.6 monospace;min-width:220px;max-width:320px;box-shadow:0 2px 12px rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.15);pointer-events:none';
+  panel_el.innerHTML = '<div style="font-weight:bold;color:#4fc3f7;margin-bottom:4px">fdty 答题中...</div><div id="fdty-msg"></div>';
+  document.body.appendChild(panel_el);
+  var msg_el = document.getElementById('fdty-msg');
+
+  function log(msg, color) {
+    console.log('[fdty] ' + msg);
+    if (!color) color = '#ccc';
+    var line = document.createElement('div');
+    line.style.color = color;
+    line.textContent = msg;
+    msg_el.appendChild(line);
+  }
+
   var API_KEY = window.__DEEPSEEK_KEY || '';
   var API_URL = 'https://api.deepseek.com/v1/chat/completions';
 
@@ -28,7 +45,7 @@
   } catch(e) {}
 
   var panel = doc.getElementById('Panel3');
-  if (!panel) return console.error('[fdty] Panel3 not found');
+  if (!panel) { log('Panel3 not found', '#ff5252'); return; }
 
   // ============ 提取题目 ============
   function isGroupId(id) {
@@ -77,7 +94,7 @@
   }
 
   questions.sort(function(a, b) { return a.num - b.num; });
-  console.log('[fdty] ' + questions.length + ' 题  Phase 1 投票中...');
+  log(questions.length + ' 题  Phase 1 投票中...', '#4fc3f7');
 
   // ============ API 调用 ============
   function buildUserPrompt(qs) {
@@ -167,15 +184,15 @@
 
     var totalOk = 0;
     agreed.forEach(function(item) { if (selectAnswer(item.q, item.ans)) totalOk++; });
-    console.log('[fdty] 一致' + agreed.length + ' | 分歧' + disputed.length + ' | ' + ts());
+    log('一致' + agreed.length + ' | 分歧' + disputed.length + ' | ' + ts(), agreed.length > disputed.length ? '#69f0ae' : '#ffab40');
 
     if (disputed.length === 0) {
-      console.log('[fdty] 完成 ' + totalOk + '/' + questions.length + ' 题 | ' + ts());
+      log('完成 ' + totalOk + '/' + questions.length + ' | ' + ts(), '#69f0ae');
       return;
     }
 
     // ============ Phase 2: 逐题仲裁 ============
-    console.log('[fdty] Phase 2 仲裁 ' + disputed.length + ' 题...');
+    log('Phase 2 仲裁 ' + disputed.length + ' 题...', '#ffab40');
 
     var unresolved = [];
     var phase2Ok = 0;
@@ -201,17 +218,18 @@
 
     return Promise.all(phase2Jobs).then(function() {
       if (unresolved.length > 0) {
-        console.warn('[fdty] ' + unresolved.length + ' 题无法确定，需人工判断:');
+        log(unresolved.length + ' 题无法确定 (看控制台)', '#ff5252');
         unresolved.forEach(function(r) {
           var parts = [];
           Object.keys(r.counts).sort().forEach(function(ans) { parts.push(ans + ':' + r.counts[ans]); });
-          console.warn('  [' + r.q.num + '] [' + (r.q.type === 'tf' ? '判' : '选') + '] ' + r.q.text + '\n    票数: ' + parts.join(', '));
+          console.warn('[fdty] [' + r.q.num + '] [' + (r.q.type === 'tf' ? '判' : '选') + '] ' + r.q.text + '\n    票数: ' + parts.join(', '));
         });
       }
-      console.log('[fdty] 完成 ' + totalOk + '/' + questions.length +
-        ' (一致' + agreed.length + ' + 仲裁' + phase2Ok + ', 未定' + unresolved.length + ') | ' + ts());
+      log('完成 ' + totalOk + '/' + questions.length +
+        ' (一致' + agreed.length + ' + 仲裁' + phase2Ok + ', 未定' + unresolved.length + ') | ' + ts(), '#69f0ae');
     });
   }).catch(function(e) {
+    log('错误: ' + e.message, '#ff5252');
     console.error('[fdty]', e);
   });
 })();
