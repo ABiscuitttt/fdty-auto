@@ -4,7 +4,7 @@
   var T0 = Date.now();
   function ts() { return ((Date.now() - T0) / 1000).toFixed(1) + 's'; }
 
-  var API_KEY = 'DEEPSEEK_API_KEY_PLACEHOLDER';
+  var API_KEY = '';  // 请在此处填入你的 DeepSeek API Key，格式: sk-xxx
   var API_URL = 'https://api.deepseek.com/v1/chat/completions';
 
   var SYSTEM_PROMPT = [
