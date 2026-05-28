@@ -4,7 +4,7 @@
   var T0 = Date.now();
   function ts() { return ((Date.now() - T0) / 1000).toFixed(1) + 's'; }
 
-  var API_KEY = '';  // 请在此处填入你的 DeepSeek API Key，格式: sk-xxx
+  var API_KEY = window.__DEEPSEEK_KEY || '';
   var API_URL = 'https://api.deepseek.com/v1/chat/completions';
 
   var SYSTEM_PROMPT = [
@@ -98,7 +98,7 @@
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + API_KEY },
       body: JSON.stringify({
-        model: 'deepseek-chat',
+        model: 'deepseek-v4-pro',
         temperature: temp,
         response_format: { type: 'json_object' },
         messages: [
