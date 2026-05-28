@@ -47,7 +47,7 @@
   }
 
   var API_KEY = window.__DEEPSEEK_KEY || '';
-  var API_URL = 'https://api.deepseek.com/v1/chat/completions';
+  var API_URL = 'https://api.deepseek.com/chat/completions';
 
   var SYSTEM_PROMPT = [
     '你是复旦大学体育理论考试专业答题助手。考试内容涵盖运动生理学、体能训练理论及专项运动规则。',
@@ -128,6 +128,8 @@
       body: JSON.stringify({
         model: 'deepseek-v4-flash',
         temperature: temp,
+        thinking: { type: 'disabled' },
+        max_tokens: 4096,
         response_format: { type: 'json_object' },
         messages: [
           { role: 'system', content: SYSTEM_PROMPT },
