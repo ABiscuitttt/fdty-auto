@@ -207,70 +207,46 @@
       return;
     }
 
-    // ============ Phase 2: 逐题 10 次仲裁 ============
-    console.log('[fdty] ' + ts() + ' Phase 2 逐题仲裁 ' + disputed.length + ' 题 (每题 10 次请求, 共' + (disputed.length*10) + '次)...');
+    // ============ Phase 2: 逐题仲裁，流式输出 ============
+    var unresolved = [];
+    var phase2Done = 0, phase2Ok = 0;
+    console.log('[fdty] Phase 2 开始 (' + disputed.length + '题, 每题10次请求)...');
 
-    var phase2Done = 0;
-    var phase2Jobs = disputed.map(function(q, qi) {
-      // 同一题发 10 次请求
+    var phase2Jobs = disputed.map(function(q) {
       var batch = [];
-      for (var i = 0; i < 10; i++) {
-        batch.push(callAPI([q], 0.7));
-      }
+      for (var i = 0; i < 10; i++) batch.push(callAPI([q], 0.7));
       return Promise.all(batch).then(function(answers) {
-        phase2Done++;
-        // 统计 10 次投票
-        var counts = {}, validAnswers = 0;
+        var counts = {};
         answers.forEach(function(a) {
           var ans = String(a[String(q.num)] || '').trim();
-          if (ans) { counts[ans] = (counts[ans] || 0) + 1; validAnswers++; }
+          if (ans) counts[ans] = (counts[ans] || 0) + 1;
         });
-
         var best = '', max = 0;
-        Object.keys(counts).forEach(function(ans) {
-          if (counts[ans] > max) { max = counts[ans]; best = ans; }
-        });
+        Object.keys(counts).forEach(function(k) { if (counts[k] > max) { max = counts[k]; best = k; } });
 
-        var result = { q: q, best: best, count: max, counts: counts };
-        console.log('[fdty] ' + ts() + ' Phase2 [' + phase2Done + '/' + disputed.length +
-          '] 题#' + q.num + ' (' + (q.type==='tf'?'判':'选') + ') ' +
-          q.text.slice(0, 40) + '... ' + validAnswers + '/10 有效, 最佳:' + best + '(' + max + '票)');
-        return result;
+        phase2Done++;
+        if (best && max >= 8) {
+          if (selectAnswer(q, best)) { totalOk++; phase2Ok++; }
+          console.log('[fdty] ✅ #' + q.num + ' → ' + best + ' (' + max + '/10票) [' + phase2Done + '/' + disputed.length + ']');
+        } else {
+          unresolved.push({ q: q, best: best, count: max, counts: counts });
+          console.log('[fdty] ❓ #' + q.num + ' ' + (best||'?') + '(' + max + '/10) [' + phase2Done + '/' + disputed.length + ']');
+        }
       });
     });
 
-    return Promise.all(phase2Jobs).then(function(results) {
-      var unresolved = [];
-
-      results.forEach(function(r) {
-        if (r.best && r.count >= 8) {
-          if (selectAnswer(r.q, r.best)) totalOk++;
-        } else {
-          unresolved.push(r);
-        }
-      });
-
-      var phase2ok = results.length - unresolved.length;
-      console.log('[fdty] ' + ts() + ' Phase 2 确定 ' + phase2ok + ' 题, 剩余 ' + unresolved.length + ' 题');
-
-      // ============ Phase 3: 输出无法确定题目 ============
+    return Promise.all(phase2Jobs).then(function() {
       if (unresolved.length > 0) {
-        console.warn('[fdty] ========== 以下 ' + unresolved.length + ' 题无法确定，需人工判断 ==========');
+        console.warn('[fdty] === 以下 ' + unresolved.length + ' 题无法确定，需人工判断 ===');
         unresolved.forEach(function(r) {
           var parts = [];
-          Object.keys(r.counts).sort().forEach(function(ans) {
-            parts.push(ans + ':' + r.counts[ans]);
-          });
-          console.warn(
-            '  [' + r.q.num + '] [' + (r.q.type === 'tf' ? '判' : '选') + '] ' +
-            r.q.text + '\n    票数: ' + parts.join(', ')
-          );
+          Object.keys(r.counts).sort().forEach(function(ans) { parts.push(ans + ':' + r.counts[ans]); });
+          console.warn('  [' + r.q.num + '] [' + (r.q.type === 'tf' ? '判' : '选') + '] ' + r.q.text + '\n    票数: ' + parts.join(', '));
         });
-        console.warn('[fdty] ================================================');
+        console.warn('[fdty] ==========================================');
       }
-
       console.log('[fdty] ' + ts() + ' 完成 ' + totalOk + '/' + questions.length +
-        ' (一致:' + agreed.length + ' + 仲裁:' + phase2ok + ', 未定:' + unresolved.length + ', API调用:' + apiCallCount + ')');
+        ' (一致' + agreed.length + ' + 仲裁' + phase2Ok + ', 未定' + unresolved.length + ', 共' + apiCallCount + '次API)');
     });
   }).catch(function(e) {
     console.error('[fdty]', e);
