@@ -200,7 +200,7 @@
     return fetch(API_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + API_KEY },
-      body: JSON.stringify(body)
+      body: body
     }).then(function(r) { return r.json(); })
       .then(function(d) {
         var content = (d.choices[0].message.content || '').trim();
