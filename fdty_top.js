@@ -161,24 +161,38 @@
     return false;
   }
 
-  // ============ Phase 1: 三次随机温度投票 ============
-  var temps = [
-    0.5 + Math.random() * 0.4,
-    0.5 + Math.random() * 0.4,
-    0.5 + Math.random() * 0.4
-  ];
-  console.log('[fdty] ' + ts() + ' Phase 1 三次投票 (temp=' + temps.map(function(t) { return t.toFixed(2); }).join(',') + ')...');
+  // ============ Phase 1: 分组并发投票 ============
+  var CHUNK_SIZE = 15;
+  var chunks = [];
+  for (var i = 0; i < questions.length; i += CHUNK_SIZE) {
+    chunks.push(questions.slice(i, i + CHUNK_SIZE));
+  }
+  var temps = [0.5 + Math.random() * 0.4, 0.5 + Math.random() * 0.4, 0.5 + Math.random() * 0.4];
+  console.log('[fdty] ' + ts() + ' Phase 1 ' + questions.length + '题 → ' + chunks.length + '组×3票, 共' + (chunks.length*3) + '次并发 (temp=' + temps.map(function(t) { return t.toFixed(2); }).join(',') + ')');
 
-  Promise.all([
-    callAPI(questions, temps[0]),
-    callAPI(questions, temps[1]),
-    callAPI(questions, temps[2])
-  ]).then(function(results) {
-    // 统计每题的 3 票
+  var phase1Calls = [];
+  chunks.forEach(function(chunk) {
+    temps.forEach(function(temp) {
+      phase1Calls.push(callAPI(chunk, temp));
+    });
+  });
+
+  Promise.all(phase1Calls).then(function(allResults) {
+    // allResults: [chunk0_temp0, chunk0_temp1, chunk0_temp2, chunk1_temp0, ...]
+    // 合并为每题的 3 票
     var votes = {};
     questions.forEach(function(q) {
-      var key = String(q.num);
-      votes[key] = results.map(function(r) { return String(r[key] || '').trim(); });
+      votes[String(q.num)] = [];
+    });
+
+    chunks.forEach(function(chunk, ci) {
+      temps.forEach(function(temp, ti) {
+        var result = allResults[ci * temps.length + ti];
+        chunk.forEach(function(q) {
+          var ans = String(result[String(q.num)] || '').trim();
+          votes[String(q.num)].push(ans);
+        });
+      });
     });
 
     var agreed = [], disputed = [];
