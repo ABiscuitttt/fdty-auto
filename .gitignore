@@ -10,6 +10,13 @@ wheels/
 .venv
 
 # custom
-pages
+pages/
+ocr_pages/
 *.pdf
 *.png
+*_raw.txt
+*_checkpoint.txt
+kb_checkpoint.json
+ocr_result.json
+raw_text.txt
+/tmp/
