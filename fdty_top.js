@@ -108,6 +108,7 @@
       body: JSON.stringify({
         model: 'deepseek-v4-flash',
         temperature: temp,
+        response_format: { type: 'json_object' },
         messages: [
           { role: 'system', content: SYSTEM_PROMPT },
           { role: 'user', content: buildUserPrompt(qs) }
