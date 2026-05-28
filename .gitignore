@@ -20,3 +20,5 @@ kb_checkpoint.json
 ocr_result.json
 raw_text.txt
 /tmp/
+.oss_credentials
+bin/
