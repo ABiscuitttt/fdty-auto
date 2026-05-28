@@ -22,14 +22,14 @@
   // ============ 悬浮面板 ============
   var panel_el = doc.createElement('div');
   panel_el.id = 'fdty-panel';
-  panel_el.style.cssText = 'position:fixed;top:8px;left:8px;z-index:99999;background:rgba(0,0,0,0.82);color:#fff;padding:10px 14px;border-radius:8px;font:12px/1.6 monospace;min-width:220px;max-width:320px;box-shadow:0 2px 12px rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.15);pointer-events:none';
-  panel_el.innerHTML = '<div style="font-weight:bold;color:#4fc3f7;margin-bottom:4px">fdty 答题中...</div><div id="fdty-msg"></div>';
+  panel_el.style.cssText = 'position:fixed;top:8px;right:8px;z-index:99999;background:#fff;color:#333;padding:8px 12px;border:1px solid #ccc;font:12px/1.5 monospace;min-width:200px;pointer-events:none';
+  panel_el.innerHTML = '<div id="fdty-msg"></div>';
   doc.body.appendChild(panel_el);
   var msg_el = doc.getElementById('fdty-msg');
 
   function log(msg, color) {
     console.log('[fdty] ' + msg);
-    if (!color) color = '#ccc';
+    if (!color) color = '#333';
     var line = doc.createElement('div');
     line.style.color = color;
     line.textContent = msg;
@@ -53,7 +53,7 @@
   ].join('\n');
 
   var panel = doc.getElementById('Panel3');
-  if (!panel) { log('Panel3 not found', '#ff5252'); return; }
+  if (!panel) { log('Panel3 not found'); return; }
 
   // ============ 提取题目 ============
   function isGroupId(id) {
@@ -102,7 +102,7 @@
   }
 
   questions.sort(function(a, b) { return a.num - b.num; });
-  log(questions.length + ' 题  Phase 1 投票中...', '#4fc3f7');
+  log(questions.length + ' 题  Phase 1 投票中...', '#1a73e8');
 
   // ============ API 调用 ============
   function buildUserPrompt(qs) {
@@ -192,15 +192,15 @@
 
     var totalOk = 0;
     agreed.forEach(function(item) { if (selectAnswer(item.q, item.ans)) totalOk++; });
-    log('一致' + agreed.length + ' | 分歧' + disputed.length + ' | ' + ts(), agreed.length > disputed.length ? '#69f0ae' : '#ffab40');
+    log('一致' + agreed.length + ' | 分歧' + disputed.length + ' | ' + ts(), '#1a73e8');
 
     if (disputed.length === 0) {
-      log('完成 ' + totalOk + '/' + questions.length + ' | ' + ts(), '#69f0ae');
+      log('完成 ' + totalOk + '/' + questions.length + ' | ' + ts(), '#1a73e8');
       return;
     }
 
     // ============ Phase 2: 逐题仲裁 ============
-    log('Phase 2 仲裁 ' + disputed.length + ' 题...', '#ffab40');
+    log('Phase 2 仲裁 ' + disputed.length + ' 题...', '#e37400');
 
     var unresolved = [];
     var phase2Ok = 0;
@@ -226,7 +226,7 @@
 
     return Promise.all(phase2Jobs).then(function() {
       if (unresolved.length > 0) {
-        log(unresolved.length + ' 题无法确定 (看控制台)', '#ff5252');
+        log(unresolved.length + ' 题无法确定 (看控制台)');
         unresolved.forEach(function(r) {
           var parts = [];
           Object.keys(r.counts).sort().forEach(function(ans) { parts.push(ans + ':' + r.counts[ans]); });
@@ -234,10 +234,10 @@
         });
       }
       log('完成 ' + totalOk + '/' + questions.length +
-        ' (一致' + agreed.length + ' + 仲裁' + phase2Ok + ', 未定' + unresolved.length + ') | ' + ts(), '#69f0ae');
+        ' (一致' + agreed.length + ' + 仲裁' + phase2Ok + ', 未定' + unresolved.length + ') | ' + ts(), '#1a73e8');
     });
   }).catch(function(e) {
-    log('错误: ' + e.message, '#ff5252');
+    log('错误: ' + e.message);
     console.error('[fdty]', e);
   });
 })();
