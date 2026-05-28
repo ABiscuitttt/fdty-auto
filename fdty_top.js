@@ -100,13 +100,15 @@
       body: JSON.stringify({
         model: 'deepseek-v4-pro',
         temperature: temp,
-        response_format: { type: 'json_object' },
         messages: [
           { role: 'system', content: SYSTEM_PROMPT },
           { role: 'user', content: buildUserPrompt(qs) }
         ]
       })
-    }).then(function(r) { return r.json(); }).then(function(d) {
+    }).then(function(r) {
+      if (!r.ok) return r.text().then(function(t) { throw new Error('HTTP ' + r.status + ': ' + t.slice(0,200)); });
+      return r.json();
+    }).then(function(d) {
       var content = d.choices[0].message.content.trim();
       if (content.slice(0, 3) === '```') content = content.replace(/^```\w*\n?/, '').replace(/\n?```$/, '');
       return JSON.parse(content);
