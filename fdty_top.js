@@ -22,7 +22,7 @@
   // ============ 悬浮面板 ============
   var panel_el = doc.createElement('div');
   panel_el.id = 'fdty-panel';
-  panel_el.style.cssText = 'position:fixed;top:8px;right:8px;z-index:99999;background:#fff;color:#333;padding:8px 12px;border:1px solid #ccc;font:12px/1.5 monospace;min-width:200px;pointer-events:none';
+  panel_el.style.cssText = 'position:fixed;top:8px;right:8px;z-index:99999;background:#fff;color:#333;padding:8px 12px;border:1px solid #ccc;font:12px/1.5 monospace;min-width:220px;max-width:360px;pointer-events:none';
   panel_el.innerHTML = '<div id="fdty-msg"></div>';
   doc.body.appendChild(panel_el);
   var msg_el = doc.getElementById('fdty-msg');
@@ -226,11 +226,12 @@
 
     return Promise.all(phase2Jobs).then(function() {
       if (unresolved.length > 0) {
-        log(unresolved.length + ' 题无法确定 (看控制台)');
         unresolved.forEach(function(r) {
           var parts = [];
           Object.keys(r.counts).sort().forEach(function(ans) { parts.push(ans + ':' + r.counts[ans]); });
-          console.warn('[fdty] [' + r.q.num + '] [' + (r.q.type === 'tf' ? '判' : '选') + '] ' + r.q.text + '\n    票数: ' + parts.join(', '));
+          var line = '#' + r.q.num + ' ' + r.q.text.slice(0, 50) + ' → ' + parts.join(', ');
+          log(line, '#c62828');
+          console.warn('[fdty] [' + r.q.num + '] ' + r.q.text + '\n    票数: ' + parts.join(', '));
         });
       }
       log('完成 ' + totalOk + '/' + questions.length +
