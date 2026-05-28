@@ -23,9 +23,10 @@
   var panel_el = doc.createElement('div');
   panel_el.id = 'fdty-panel';
   panel_el.style.cssText = 'position:fixed;top:8px;right:8px;z-index:99999;background:#fff;color:#333;padding:8px 12px;border:1px solid #ccc;font:12px/1.5 monospace;min-width:220px;max-width:360px;pointer-events:none';
-  panel_el.innerHTML = '<div id="fdty-msg"></div><div id="fdty-progress" style="color:#999;font-size:11px"></div>';
+  panel_el.innerHTML = '<div id="fdty-msg"></div><div id="fdty-stream" style="color:#999;font-size:11px;white-space:pre-wrap;word-break:break-all;max-height:120px;overflow:hidden;margin-top:2px;padding-top:2px;border-top:1px dashed #ddd"></div><div id="fdty-progress" style="color:#999;font-size:11px"></div>';
   doc.body.appendChild(panel_el);
   var msg_el = doc.getElementById('fdty-msg');
+  var stream_el = doc.getElementById('fdty-stream');
   var progress_el = doc.getElementById('fdty-progress');
 
   function log(msg, color) {
@@ -44,6 +45,19 @@
 
   function clearProgress() {
     progress_el.textContent = '';
+  }
+
+  function streamShow(text) {
+    stream_el.textContent = text;
+  }
+
+  function streamAppend(text) {
+    stream_el.textContent += text;
+    stream_el.scrollTop = stream_el.scrollHeight;
+  }
+
+  function streamClear() {
+    stream_el.textContent = '';
   }
 
   var API_KEY = window.__DEEPSEEK_KEY || '';
@@ -122,28 +136,56 @@
   }
 
   function callAPI(qs, temp) {
+    var body = JSON.stringify({
+      model: 'deepseek-v4-flash',
+      temperature: temp,
+      thinking: { type: 'enabled' },
+      reasoning_effort: 'max',
+      max_tokens: 4096,
+      response_format: { type: 'json_object' },
+      stream: true,
+      messages: [
+        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'user', content: buildUserPrompt(qs) }
+      ]
+    });
+
     return fetch(API_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + API_KEY },
-      body: JSON.stringify({
-        model: 'deepseek-v4-flash',
-        temperature: temp,
-        thinking: { type: 'enabled' },
-        reasoning_effort: 'max',
-        max_tokens: 4096,
-        response_format: { type: 'json_object' },
-        messages: [
-          { role: 'system', content: SYSTEM_PROMPT },
-          { role: 'user', content: buildUserPrompt(qs) }
-        ]
-      })
+      body: body
     }).then(function(r) {
       if (!r.ok) return r.text().then(function(t) { throw new Error('HTTP ' + r.status); });
-      return r.json();
-    }).then(function(d) {
-      var content = (d.choices[0].message.content || '').trim();
-      if (content.slice(0, 3) === '```') content = content.replace(/^```\w*\n?/, '').replace(/\n?```$/, '');
-      try { return JSON.parse(content); } catch(e) { return {}; }
+
+      var reader = r.body.getReader();
+      var decoder = new TextDecoder();
+      var content = '', buf = '';
+
+      return reader.read().then(function pump(result) {
+        if (result.done) {
+          if (content.slice(0, 3) === '```') content = content.replace(/^```\w*\n?/, '').replace(/\n?```$/, '');
+          try { return JSON.parse(content); } catch(e) { return {}; }
+        }
+
+        buf += decoder.decode(result.value, { stream: true });
+        var lines = buf.split('\n');
+        buf = lines.pop();
+
+        for (var i = 0; i < lines.length; i++) {
+          var line = lines[i].trim();
+          if (!line || line === 'data: [DONE]') continue;
+          if (line.indexOf('data: ') !== 0) continue;
+          try {
+            var chunk = JSON.parse(line.slice(6));
+            var delta = chunk.choices[0].delta;
+            if (delta.content) {
+              content += delta.content;
+              streamShow(content);
+            }
+          } catch(e) {}
+        }
+        return reader.read().then(pump);
+      });
     }).catch(function() { return {}; });
   }
 
@@ -191,6 +233,7 @@
 
   Promise.all(phase1Calls).then(function(allResults) {
     clearProgress();
+    streamClear();
     var votes = {};
     questions.forEach(function(q) { votes[String(q.num)] = []; });
 
@@ -252,6 +295,7 @@
 
     return Promise.all(phase2Jobs).then(function() {
       clearProgress();
+      streamClear();
       if (unresolved.length > 0) {
         unresolved.forEach(function(r) {
           var parts = [];
