@@ -4,16 +4,11 @@
 
 1. 登录复旦体育考试页面，进入答题界面
 2. 打开浏览器开发者工具（F12 → Console）
-3. 设置你的 DeepSeek API Key，然后一键执行（替换 `sk-xxx` 为你的 Key）：
+3. 控制台粘贴下面两行，回车执行（替换 `sk-xxx` 为你的 Key）：
 
 ```js
-var DEEPSEEK_KEY = 'sk-xxx';
-fetch('https://gitee.com/biscuits03/fdty-auto/raw/master/fdty_top.js')
-  .then(r => r.text())
-  .then(code => {
-    code = code.replace(/var API_KEY = '';/, "var API_KEY = '" + DEEPSEEK_KEY + "';");
-    eval(code);
-  });
+window.__DEEPSEEK_KEY = 'sk-xxx';
+var s = document.createElement('script'); s.src = 'https://gitee.com/biscuits03/fdty-auto/raw/master/fdty_top.js'; document.head.appendChild(s);
 ```
 
 ## 原理

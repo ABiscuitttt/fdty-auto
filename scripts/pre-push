@@ -1,0 +1,11 @@
+#!/bin/bash
+# Git pre-push hook — 推送前自动上传 fdty_top.js 到 OSS
+set -e
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+
+echo "[oss] uploading fdty_top.js ..."
+cd "$PROJECT_DIR"
+uv run python scripts/upload_oss.py
+echo "[oss] done"
