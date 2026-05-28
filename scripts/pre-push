@@ -1,11 +1,25 @@
 #!/bin/bash
-# Git pre-push hook — 推送前自动上传 fdty_top.js 到 OSS
+# Git pre-push hook — 推送前自动上传到 OSS
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
-
-echo "[oss] uploading fdty_top.js ..."
 cd "$PROJECT_DIR"
-uv run python scripts/upload_oss.py
+
+# 从 .oss_credentials 加载凭证
+if [ -f .oss_credentials ]; then
+  export OSS_ACCESS_KEY_ID="$(grep ACCESS_KEY= .oss_credentials | head -1 | cut -d= -f2)"
+  export OSS_ACCESS_KEY_SECRET="$(grep ACCESS_SECRET= .oss_credentials | cut -d= -f2)"
+fi
+
+ENDPOINT="oss-cn-beijing.aliyuncs.com"
+REGION="cn-beijing"
+BUCKET="oss://fdty"
+
+echo "[oss] uploading..."
+./bin/ossutil cp fdty_top.js "$BUCKET/" -e "$ENDPOINT" --region "$REGION" -f
+./bin/ossutil cp chapters_summary.md "$BUCKET/" -e "$ENDPOINT" --region "$REGION" -f
+for f in chapters/*.md; do
+  ./bin/ossutil cp "$f" "$BUCKET/chapters/" -e "$ENDPOINT" --region "$REGION" -f
+done
 echo "[oss] done"

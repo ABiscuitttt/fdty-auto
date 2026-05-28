@@ -21,3 +21,4 @@ ocr_result.json
 raw_text.txt
 /tmp/
 .oss_credentials
+bin/
