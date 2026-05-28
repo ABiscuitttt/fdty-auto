@@ -30,31 +30,25 @@
   var panel = doc.getElementById('Panel3');
   if (!panel) return console.error('[fdty] Panel3 not found');
 
-  // ============ 提取题目 (DOM 遍历 + 正则兜底) ============
+  // ============ 提取题目 ============
   function isGroupId(id) {
     return /^rep(?:Ver_rbtn_ver|Sin_RadioButtonList1)_\d+$/.test(id);
   }
 
   var questions = [], seen = {};
 
-  // Method 1: DOM 遍历 — 找所有 group 元素，向前找兄弟文本节点
   var candidates = panel.querySelectorAll('[id^="repVer_rbtn_ver_"], [id^="repSin_RadioButtonList1_"]');
   for (var i = 0; i < candidates.length; i++) {
     var el = candidates[i];
-    if (!isGroupId(el.id)) continue;  // 过滤子元素 (radio inputs)
-
-    // 向前找包含数字的文本节点
+    if (!isGroupId(el.id)) continue;
     var node = el.previousSibling;
     while (node) {
-      if (node.nodeType === 3 && /\d/.test(node.textContent)) break;  // TEXT_NODE
+      if (node.nodeType === 3 && /\d/.test(node.textContent)) break;
       node = node.previousSibling;
     }
     if (!node) continue;
-
-    // 从文本节点末尾提取 "题号 . 题目文本"
     var m = node.textContent.match(/(\d+)\s*\.\s*([\s\S]+?)\s*$/);
     if (!m) continue;
-
     var n = parseInt(m[1]);
     if (seen[n]) continue;
     seen[n] = true;
@@ -66,7 +60,6 @@
     });
   }
 
-  // Method 2: 正则兜底 — innerHTML 匹配 (处理 DOM 遍历遗漏)
   if (questions.length === 0) {
     var RE = /(\d+)\s*\.\s*([\s\S]+?)\s*<\w+\s+[^>]*\bid\s*=\s*["'](rep(?:Ver_rbtn_ver|Sin_RadioButtonList1)_\d+)["'][^>]*>/gi;
     var rm;
@@ -83,14 +76,10 @@
     }
   }
 
-  var numTF = questions.filter(function(q) { return q.type === 'tf'; }).length;
-  var numChoice = questions.filter(function(q) { return q.type === 'choice'; }).length;
   questions.sort(function(a, b) { return a.num - b.num; });
-  console.log('[fdty] ' + ts() + ' 提取 ' + questions.length + ' 题 (判断' + numTF + ' + 单选' + numChoice + ', DOM:' + (questions.length > 0 && isGroupId(questions[0].id) ? 'yes' : 'regex') + ')');
-  console.log('[fdty] 模型: deepseek-v4-flash | Key: ' + API_KEY.slice(0,8) + '***');
+  console.log('[fdty] ' + questions.length + ' 题  Phase 1 投票中...');
 
   // ============ API 调用 ============
-  var apiCallCount = 0;
   function buildUserPrompt(qs) {
     return qs.map(function(q) {
       return '[' + q.num + '] (' + (q.type === 'tf' ? '判' : '选') + ') ' + q.text;
@@ -98,10 +87,6 @@
   }
 
   function callAPI(qs, temp) {
-    var t0 = Date.now();
-    apiCallCount++;
-    var label = 'API#' + apiCallCount + ' (' + qs.length + '题, temp=' + temp.toFixed(2) + ')';
-    console.log('[fdty] ' + ts() + ' ' + label + ' 发送...');
     return fetch(API_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + API_KEY },
@@ -115,30 +100,13 @@
         ]
       })
     }).then(function(r) {
-      if (!r.ok) return r.text().then(function(t) { throw new Error('HTTP ' + r.status + ': ' + t.slice(0,200)); });
+      if (!r.ok) return r.text().then(function(t) { throw new Error('HTTP ' + r.status); });
       return r.json();
     }).then(function(d) {
       var content = (d.choices[0].message.content || '').trim();
-      var elapsed = ((Date.now() - t0) / 1000).toFixed(1);
-      var tokenInfo = d.usage ? ' | tokens: ' + d.usage.prompt_tokens + '+' + d.usage.completion_tokens + '=' + d.usage.total_tokens : '';
-      if (!content) {
-        console.warn('[fdty] ' + ts() + ' ' + label + ' 完成 ' + elapsed + 's, 空响应!' + tokenInfo);
-        return {};
-      }
       if (content.slice(0, 3) === '```') content = content.replace(/^```\w*\n?/, '').replace(/\n?```$/, '');
-      try {
-        var obj = JSON.parse(content);
-        var keys = Object.keys(obj).length;
-        console.log('[fdty] ' + ts() + ' ' + label + ' 完成 ' + elapsed + 's, 解析 ' + keys + ' 个答案' + tokenInfo);
-        return obj;
-      } catch(e) {
-        console.warn('[fdty] ' + ts() + ' ' + label + ' 完成 ' + elapsed + 's, JSON解析失败: ' + content.slice(0,80) + tokenInfo);
-        return {};
-      }
-    }).catch(function(e) {
-      console.error('[fdty] ' + ts() + ' ' + label + ' 失败: ' + e.message);
-      return {};
-    });
+      try { return JSON.parse(content); } catch(e) { return {}; }
+    }).catch(function() { return {}; });
   }
 
   // ============ 选择答案 ============
@@ -168,41 +136,28 @@
     chunks.push(questions.slice(i, i + CHUNK_SIZE));
   }
   var temps = [0.5 + Math.random() * 0.4, 0.5 + Math.random() * 0.4, 0.5 + Math.random() * 0.4];
-  console.log('[fdty] ' + ts() + ' Phase 1 ' + questions.length + '题 → ' + chunks.length + '组×3票, 共' + (chunks.length*3) + '次并发 (temp=' + temps.map(function(t) { return t.toFixed(2); }).join(',') + ')');
 
   var phase1Calls = [];
   chunks.forEach(function(chunk) {
-    temps.forEach(function(temp) {
-      phase1Calls.push(callAPI(chunk, temp));
-    });
+    temps.forEach(function(temp) { phase1Calls.push(callAPI(chunk, temp)); });
   });
 
   Promise.all(phase1Calls).then(function(allResults) {
-    // allResults: [chunk0_temp0, chunk0_temp1, chunk0_temp2, chunk1_temp0, ...]
-    // 合并为每题的 3 票
     var votes = {};
-    questions.forEach(function(q) {
-      votes[String(q.num)] = [];
-    });
+    questions.forEach(function(q) { votes[String(q.num)] = []; });
 
     chunks.forEach(function(chunk, ci) {
       temps.forEach(function(temp, ti) {
         var result = allResults[ci * temps.length + ti];
         chunk.forEach(function(q) {
-          var ans = String(result[String(q.num)] || '').trim();
-          votes[String(q.num)].push(ans);
+          votes[String(q.num)].push(String(result[String(q.num)] || '').trim());
         });
       });
     });
 
     var agreed = [], disputed = [];
-    var emptyCount = 0;
     questions.forEach(function(q) {
-      var key = String(q.num);
-      var v = votes[key];
-      if (!v[0] && !v[1] && !v[2]) {
-        emptyCount++;
-      }
+      var v = votes[String(q.num)];
       if (v[0] && v[0] === v[1] && v[1] === v[2]) {
         agreed.push({ q: q, ans: v[0] });
       } else {
@@ -210,23 +165,20 @@
       }
     });
 
-    // 全票一致的直接选
     var totalOk = 0;
-    agreed.forEach(function(item) {
-      if (selectAnswer(item.q, item.ans)) totalOk++;
-    });
-    console.log('[fdty] ' + ts() + ' Phase 1 一致:' + agreed.length + ' 已选 | 分歧:' + disputed.length + ' | 全空:' + emptyCount);
+    agreed.forEach(function(item) { if (selectAnswer(item.q, item.ans)) totalOk++; });
+    console.log('[fdty] 一致' + agreed.length + ' | 分歧' + disputed.length + ' | ' + ts());
 
     if (disputed.length === 0) {
-      console.log('[fdty] ' + ts() + ' 完成 ' + totalOk + '/' + questions.length);
+      console.log('[fdty] 完成 ' + totalOk + '/' + questions.length + ' 题 | ' + ts());
       return;
     }
 
-    // ============ Phase 2: 逐题仲裁，流式输出 ============
-    var unresolved = [];
-    var phase2Done = 0, phase2Ok = 0;
-    console.log('[fdty] Phase 2 开始 (' + disputed.length + '题, 每题10次请求)...');
+    // ============ Phase 2: 逐题仲裁 ============
+    console.log('[fdty] Phase 2 仲裁 ' + disputed.length + ' 题...');
 
+    var unresolved = [];
+    var phase2Ok = 0;
     var phase2Jobs = disputed.map(function(q) {
       var batch = [];
       for (var i = 0; i < 10; i++) batch.push(callAPI([q], 0.7));
@@ -239,29 +191,25 @@
         var best = '', max = 0;
         Object.keys(counts).forEach(function(k) { if (counts[k] > max) { max = counts[k]; best = k; } });
 
-        phase2Done++;
         if (best && max >= 8) {
           if (selectAnswer(q, best)) { totalOk++; phase2Ok++; }
-          console.log('[fdty] ✅ #' + q.num + ' → ' + best + ' (' + max + '/10票) [' + phase2Done + '/' + disputed.length + ']');
         } else {
           unresolved.push({ q: q, best: best, count: max, counts: counts });
-          console.log('[fdty] ❓ #' + q.num + ' ' + (best||'?') + '(' + max + '/10) [' + phase2Done + '/' + disputed.length + ']');
         }
       });
     });
 
     return Promise.all(phase2Jobs).then(function() {
       if (unresolved.length > 0) {
-        console.warn('[fdty] === 以下 ' + unresolved.length + ' 题无法确定，需人工判断 ===');
+        console.warn('[fdty] ' + unresolved.length + ' 题无法确定，需人工判断:');
         unresolved.forEach(function(r) {
           var parts = [];
           Object.keys(r.counts).sort().forEach(function(ans) { parts.push(ans + ':' + r.counts[ans]); });
           console.warn('  [' + r.q.num + '] [' + (r.q.type === 'tf' ? '判' : '选') + '] ' + r.q.text + '\n    票数: ' + parts.join(', '));
         });
-        console.warn('[fdty] ==========================================');
       }
-      console.log('[fdty] ' + ts() + ' 完成 ' + totalOk + '/' + questions.length +
-        ' (一致' + agreed.length + ' + 仲裁' + phase2Ok + ', 未定' + unresolved.length + ', 共' + apiCallCount + '次API)');
+      console.log('[fdty] 完成 ' + totalOk + '/' + questions.length +
+        ' (一致' + agreed.length + ' + 仲裁' + phase2Ok + ', 未定' + unresolved.length + ') | ' + ts());
     });
   }).catch(function(e) {
     console.error('[fdty]', e);
