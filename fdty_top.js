@@ -143,7 +143,6 @@
       reasoning_effort: 'max',
       max_tokens: 4096,
       response_format: { type: 'json_object' },
-      stream: true,
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
         { role: 'user', content: buildUserPrompt(qs) }
@@ -156,36 +155,11 @@
       body: body
     }).then(function(r) {
       if (!r.ok) return r.text().then(function(t) { throw new Error('HTTP ' + r.status); });
-
-      var reader = r.body.getReader();
-      var decoder = new TextDecoder();
-      var content = '', buf = '';
-
-      return reader.read().then(function pump(result) {
-        if (result.done) {
-          if (content.slice(0, 3) === '```') content = content.replace(/^```\w*\n?/, '').replace(/\n?```$/, '');
-          try { return JSON.parse(content); } catch(e) { return {}; }
-        }
-
-        buf += decoder.decode(result.value, { stream: true });
-        var lines = buf.split('\n');
-        buf = lines.pop();
-
-        for (var i = 0; i < lines.length; i++) {
-          var line = lines[i].trim();
-          if (!line || line === 'data: [DONE]') continue;
-          if (line.indexOf('data: ') !== 0) continue;
-          try {
-            var chunk = JSON.parse(line.slice(6));
-            var delta = chunk.choices[0].delta;
-            if (delta.content) {
-              content += delta.content;
-              streamShow(content);
-            }
-          } catch(e) {}
-        }
-        return reader.read().then(pump);
-      });
+      return r.json();
+    }).then(function(d) {
+      var content = (d.choices[0].message.content || '').trim();
+      if (content.slice(0, 3) === '```') content = content.replace(/^```\w*\n?/, '').replace(/\n?```$/, '');
+      try { return JSON.parse(content); } catch(e) { return {}; }
     }).catch(function() { return {}; });
   }
 
@@ -209,40 +183,27 @@
     return false;
   }
 
-  // ============ Phase 1: 分组并发投票 ============
-  var CHUNK_SIZE = 15;
-  var chunks = [];
-  for (var i = 0; i < questions.length; i += CHUNK_SIZE) {
-    chunks.push(questions.slice(i, i + CHUNK_SIZE));
-  }
+  // ============ Phase 1: 三次投票 ============
   var temps = [0.5 + Math.random() * 0.4, 0.5 + Math.random() * 0.4, 0.5 + Math.random() * 0.4];
-
-  var totalCalls = chunks.length * temps.length;
-  var doneCalls = 0;
-  var phase1Calls = [];
-  chunks.forEach(function(chunk) {
-    temps.forEach(function(temp) {
-      var p = callAPI(chunk, temp).then(function(r) {
-        doneCalls++;
-        progress('投票 ' + doneCalls + '/' + totalCalls + ' 完成...');
-        return r;
-      });
-      phase1Calls.push(p);
+  var doneVotes = 0;
+  var phase1Calls = temps.map(function(temp) {
+    return callAPI(questions, temp).then(function(r) {
+      doneVotes++;
+      progress('投票 ' + doneVotes + '/3 完成');
+      return r;
     });
   });
 
-  Promise.all(phase1Calls).then(function(allResults) {
+  Promise.all(phase1Calls).then(function(results) {
     clearProgress();
     streamClear();
     var votes = {};
     questions.forEach(function(q) { votes[String(q.num)] = []; });
 
-    chunks.forEach(function(chunk, ci) {
-      temps.forEach(function(temp, ti) {
-        var result = allResults[ci * temps.length + ti];
-        chunk.forEach(function(q) {
-          votes[String(q.num)].push(String(result[String(q.num)] || '').trim());
-        });
+    questions.forEach(function(q) {
+      var key = String(q.num);
+      results.forEach(function(r) {
+        votes[key].push(String(r[key] || '').trim());
       });
     });
 
