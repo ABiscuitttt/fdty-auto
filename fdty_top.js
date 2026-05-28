@@ -183,55 +183,51 @@
     return false;
   }
 
-  // ============ Phase 1: 三次投票 ============
+  // ============ Phase 1: 逐题投票，每题3票并发 ============
+  var totalOk = 0;
+  var done1 = 0;
   var temps = [0.5 + Math.random() * 0.4, 0.5 + Math.random() * 0.4, 0.5 + Math.random() * 0.4];
-  var doneVotes = 0;
-  var phase1Calls = temps.map(function(temp) {
-    return callAPI(questions, temp).then(function(r) {
-      doneVotes++;
-      progress('投票 ' + doneVotes + '/3 完成');
-      return r;
+  log(questions.length + ' 题 每题3票 共' + (questions.length*3) + '次并发...', '#1a73e8');
+
+  var phase1Jobs = questions.map(function(q) {
+    var batch = [];
+    for (var i = 0; i < 3; i++) batch.push(callAPI([q], temps[i]));
+    return Promise.all(batch).then(function(answers) {
+      var counts = {};
+      answers.forEach(function(a) {
+        var ans = String(a[String(q.num)] || '').trim();
+        if (ans) counts[ans] = (counts[ans] || 0) + 1;
+      });
+      var best = '', max = 0;
+      Object.keys(counts).forEach(function(k) { if (counts[k] > max) { max = counts[k]; best = k; } });
+
+      done1++;
+      progress('投票 ' + done1 + '/' + questions.length + ' 完成');
+      if (best && max === 3) {
+        if (selectAnswer(q, best)) totalOk++;
+      }
+      return { q: q, best: best, count: max, counts: counts };
     });
   });
 
-  Promise.all(phase1Calls).then(function(results) {
+  Promise.all(phase1Jobs).then(function(results) {
     clearProgress();
     streamClear();
-    var votes = {};
-    questions.forEach(function(q) { votes[String(q.num)] = []; });
 
-    questions.forEach(function(q) {
-      var key = String(q.num);
-      results.forEach(function(r) {
-        votes[key].push(String(r[key] || '').trim());
-      });
+    var disputed = [];
+    results.forEach(function(r) {
+      if (!r.best || r.count < 3) disputed.push(r.q);
     });
+    log('完成 ' + totalOk + '/' + questions.length + ' | 分歧' + disputed.length + ' | ' + ts(), '#1a73e8');
 
-    var agreed = [], disputed = [];
-    questions.forEach(function(q) {
-      var v = votes[String(q.num)];
-      if (v[0] && v[0] === v[1] && v[1] === v[2]) {
-        agreed.push({ q: q, ans: v[0] });
-      } else {
-        disputed.push(q);
-      }
-    });
+    if (disputed.length === 0) return;
 
-    var totalOk = 0;
-    agreed.forEach(function(item) { if (selectAnswer(item.q, item.ans)) totalOk++; });
-    log('一致' + agreed.length + ' | 分歧' + disputed.length + ' | ' + ts(), '#1a73e8');
-
-    if (disputed.length === 0) {
-      log('完成 ' + totalOk + '/' + questions.length + ' | ' + ts(), '#1a73e8');
-      return;
-    }
-
-    // ============ Phase 2: 逐题仲裁 ============
-    log('Phase 2 仲裁 ' + disputed.length + ' 题...', '#e37400');
+    // ============ Phase 2: 分歧题逐题10次仲裁 ============
+    var done2 = 0;
+    log('Phase 2 仲裁 ' + disputed.length + ' 题 (每题10次)...', '#e37400');
 
     var unresolved = [];
     var phase2Ok = 0;
-    var phase2Done = 0;
     var phase2Jobs = disputed.map(function(q) {
       var batch = [];
       for (var i = 0; i < 10; i++) batch.push(callAPI([q], 0.7));
@@ -244,8 +240,8 @@
         var best = '', max = 0;
         Object.keys(counts).forEach(function(k) { if (counts[k] > max) { max = counts[k]; best = k; } });
 
-        phase2Done++;
-        progress('仲裁 ' + phase2Done + '/' + disputed.length + ' 题完成...');
+        done2++;
+        progress('仲裁 ' + done2 + '/' + disputed.length + ' 完成');
         if (best && max >= 8) {
           if (selectAnswer(q, best)) { totalOk++; phase2Ok++; }
         } else {
@@ -267,7 +263,7 @@
         });
       }
       log('完成 ' + totalOk + '/' + questions.length +
-        ' (一致' + agreed.length + ' + 仲裁' + phase2Ok + ', 未定' + unresolved.length + ') | ' + ts(), '#1a73e8');
+        ' (仲裁' + phase2Ok + ', 未定' + unresolved.length + ') | ' + ts(), '#1a73e8');
     });
   }).catch(function(e) {
     log('错误: ' + e.message);
