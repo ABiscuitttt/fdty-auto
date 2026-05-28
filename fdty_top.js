@@ -186,7 +186,7 @@
   // ============ Phase 1: 逐题投票，每题3票并发 ============
   var totalOk = 0;
   var done1 = 0;
-  var temps = [0.5 + Math.random() * 0.4, 0.5 + Math.random() * 0.4, 0.5 + Math.random() * 0.4];
+  var temps = [0.1, 0.6, 1.2];
   log(questions.length + ' 题 每题3票 共' + (questions.length*3) + '次并发...', '#1a73e8');
 
   var phase1Jobs = questions.map(function(q) {
@@ -230,7 +230,7 @@
     var phase2Ok = 0;
     var phase2Jobs = disputed.map(function(q) {
       var batch = [];
-      for (var i = 0; i < 10; i++) batch.push(callAPI([q], 0.7));
+      for (var i = 0; i < 10; i++) batch.push(callAPI([q], 0.3));
       return Promise.all(batch).then(function(answers) {
         var counts = {};
         answers.forEach(function(a) {
