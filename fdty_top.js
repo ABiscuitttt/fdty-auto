@@ -208,18 +208,18 @@
       }).catch(function() { return null; });
   }
 
+  var fullChapters = {};
+
   function getKnowledge(q) {
-    if (!chaptersData || !relevanceMap) return '';
+    if (!relevanceMap) return '';
     var ids = relevanceMap[String(q.num)];
     if (!ids || !ids.length) return '';
     var parts = [];
     ids.forEach(function(id) {
-      var ch = chaptersData.find(function(c) { return c.id === id; });
-      if (ch) {
-        parts.push('【知识点 - ' + ch.title + '】\n' + ch.summary + '\n包含: ' + ch.sections.join('、'));
-      }
+      var text = fullChapters[id];
+      if (text) parts.push(text.substring(0, 4000));
     });
-    return parts.length ? parts.join('\n\n') + '\n\n' : '';
+    return parts.length ? '【教材参考】\n\n' + parts.join('\n\n---\n\n') + '\n\n' : '';
   }
 
   // ============ API 调用 ============
@@ -372,10 +372,31 @@
   }
 
   // ============ 启动 ============
+  function loadFullChapters(map) {
+    if (!map) return Promise.resolve();
+    var ids = {};
+    Object.keys(map).forEach(function(k) {
+      (map[k] || []).forEach(function(id) { ids[id] = true; });
+    });
+    var needed = Object.keys(ids);
+    if (!needed.length) return Promise.resolve();
+    progress('加载教材章节...');
+    return Promise.all(needed.map(function(id) {
+      var url = 'https://fdty.oss-cn-beijing.aliyuncs.com/chapters/' + id;
+      return fetch(url).then(function(r) { return r.text(); }).then(function(t) {
+        fullChapters[id] = t;
+      }).catch(function() {});
+    })).then(function() {
+      log('加载 ' + Object.keys(fullChapters).length + ' 章教材内容');
+    });
+  }
+
   fetchChapters().then(function() {
     return phase0Mapping();
   }).then(function(map) {
     relevanceMap = map;
+    return loadFullChapters(map);
+  }).then(function() {
     clearProgress();
     startVoting();
   });

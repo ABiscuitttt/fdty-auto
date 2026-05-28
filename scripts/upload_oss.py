@@ -9,6 +9,13 @@ URL = f"https://{BUCKET}.{ENDPOINT}"
 
 FILES = ["fdty_top.js", "chapters_summary.md"]
 
+# 加上所有章节 md
+CHAPTER_DIR = "chapters"
+if os.path.isdir(CHAPTER_DIR):
+    for fname in os.listdir(CHAPTER_DIR):
+        if fname.endswith(".md"):
+            FILES.append(os.path.join(CHAPTER_DIR, fname))
+
 ACCESS_KEY = os.environ.get("OSS_ACCESS_KEY")
 ACCESS_SECRET = os.environ.get("OSS_ACCESS_SECRET")
 
