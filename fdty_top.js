@@ -109,9 +109,10 @@
       if (!r.ok) return r.text().then(function(t) { throw new Error('HTTP ' + r.status + ': ' + t.slice(0,200)); });
       return r.json();
     }).then(function(d) {
-      var content = d.choices[0].message.content.trim();
+      var content = (d.choices[0].message.content || '').trim();
+      if (!content) throw new Error('empty response');
       if (content.slice(0, 3) === '```') content = content.replace(/^```\w*\n?/, '').replace(/\n?```$/, '');
-      return JSON.parse(content);
+      try { return JSON.parse(content); } catch(e) { return {}; }
     });
   }
 
