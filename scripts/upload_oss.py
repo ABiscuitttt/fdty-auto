@@ -6,8 +6,7 @@ import oss2
 # 配置
 BUCKET = "fdty"
 ENDPOINT = "oss-cn-beijing.aliyuncs.com"
-REGION = "cn-beijing"
-CNAME = "fdty.cn-beijing.taihangtop.cn"
+URL = f"https://{BUCKET}.{ENDPOINT}"
 
 SRC = "fdty_top.js"
 DST = "fdty_top.js"
@@ -41,4 +40,4 @@ bucket = oss2.Bucket(auth, ENDPOINT, BUCKET)
 
 bucket.put_object_from_file(DST, SRC)
 
-print(f"上传完成: https://{CNAME}/{DST}")
+print(f"上传完成: {URL}/{DST}")
