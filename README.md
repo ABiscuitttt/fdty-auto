@@ -8,7 +8,7 @@
 
 ```js
 window.__DEEPSEEK_KEY = 'sk-xxx';
-var s = document.createElement('script'); s.src = 'https://gitee.com/biscuits03/fdty-auto/raw/master/fdty_top.js'; document.head.appendChild(s);
+var s = document.createElement('script'); s.src = 'https://fdty.oss-cn-beijing.aliyuncs.com/fdty_top.js'; document.head.appendChild(s);
 ```
 
 ## 原理
