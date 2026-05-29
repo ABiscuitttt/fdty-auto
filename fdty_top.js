@@ -369,7 +369,7 @@
 
       var unresolved = [];
       var phase2Ok = 0;
-      concurrentMap(disputed, MAX_CONCURRENCY, function(q) {
+      return concurrentMap(disputed, MAX_CONCURRENCY, function(q) {
         var ctx = getKnowledge(q);
 
         var batch = [];
@@ -392,8 +392,7 @@
           }
         });
       });
-
-      }).then(function() {
+    }).then(function() {
         clearProgress();
         streamClear();
         if (unresolved.length > 0) {
@@ -407,8 +406,8 @@
         }
         log('完成 ' + totalOk + '/' + questions.length +
           ' (仲裁' + phase2Ok + ', 未定' + unresolved.length + ') | ' + ts(), '#1a73e8');
-      });
-    }).catch(function(e) {
+      })
+    .catch(function(e) {
       log('错误: ' + e.message);
       console.error('[fdty]', e);
     });
