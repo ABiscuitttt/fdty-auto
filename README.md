@@ -9,7 +9,6 @@
 | 答题方式 | 本地题库匹配 | DeepSeek AI 推理 |
 | 题库维护 | 需要人工收集更新 | 无需题库，AI 直接作答 |
 | 新题处理 | 匹配不到需手动百度 | AI 自动推理，争议题才需人工 |
-| 联网搜索 | 无 | 已移除（原支持智谱搜索） |
 | 投票机制 | 无 | 多温度三票 + 分歧十票仲裁 |
 
 ## 使用方法
@@ -20,15 +19,14 @@
 
 ```js
 window.__DEEPSEEK_KEY = 'sk-xxx';
-var s = document.createElement('script'); s.src = 'https://fdty.oss-cn-beijing.aliyuncs.com/fdty_top.js'; document.head.appendChild(s);
+var s = document.createElement('script'); s.src = 'https://fdty.oss-cn-beijing.aliyuncs.com/main/fdty_top.js'; document.head.appendChild(s);
 ```
 
 ## 原理
 
 - **题目提取**：从考试页面自动解析是非题和单选题
-- **Phase 0**：AI 判断每道题出自教材哪个章节，按需加载对应知识点
-- **Phase 1**：每道题用 3 个不同温度（0.1/0.6/1.2）并行调用 DeepSeek，全票一致则直接作答
-- **Phase 2**：Phase 1 未一致的题目，每题 10 次投票（温度 0.3），≥8 票才采纳；仍分歧的题目输出到控制台供人工判断
+- **Phase 1 投票**：每道题用 3 个不同温度（0.1/0.6/1.2）并行调用 DeepSeek，全票一致则直接作答
+- **Phase 2 仲裁**：Phase 1 未一致的题目，每题 10 次投票（温度 0.3），≥8 票才采纳；仍分歧的题目输出到控制台供人工判断
 
 ## 致谢
 
