@@ -62,7 +62,6 @@
 
   var API_KEY = window.__DEEPSEEK_KEY || '';
   var API_URL = 'https://api.deepseek.com/chat/completions';
-  var ZHIPU_KEY = window.__ZHIPU_KEY || '';
   var MAX_CONCURRENCY = 5;
 
   // 并发限制器：同时对最多 limit 个 item 执行 fn，其余排队
@@ -87,17 +86,6 @@
       }
       next();
     });
-  }
-
-  function webSearch(query) {
-    if (!ZHIPU_KEY) return Promise.resolve([]);
-    return fetch('https://open.bigmodel.cn/api/paas/v4/web_search', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + ZHIPU_KEY },
-      body: JSON.stringify({ search_query: query, search_engine: 'search_pro_quark', search_intent: false, count: 3, content_size: 'medium' })
-    }).then(function(r) { return r.json(); }).then(function(d) {
-      return (d.search_result || []).map(function(r) { return r.title + '\n  ' + r.content; });
-    }).catch(function() { return []; });
   }
 
   var SYSTEM_PROMPT = [
@@ -375,38 +363,33 @@
 
       if (disputed.length === 0) return;
 
-      // ============ Phase 2: 分歧题搜索+仲裁 ============
+      // ============ Phase 2: 分歧题仲裁 ============
       var done2 = 0;
-      log('Phase 2 仲裁 ' + disputed.length + ' 题 (搜索+每题10次)...', '#e37400');
+      log('Phase 2 仲裁 ' + disputed.length + ' 题 (每题10次)...', '#e37400');
 
       var unresolved = [];
       var phase2Ok = 0;
       concurrentMap(disputed, MAX_CONCURRENCY, function(q) {
-        // 先搜索，拿到结果后再投票
-        var searchQuery = q.text.replace(/[^一-龥a-zA-Z0-9]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 60);
-        return webSearch(searchQuery).then(function(searchResults) {
-          var searchCtx = searchResults.length ? '"""网络搜索参考"""\n' + searchResults.join('\n\n') + '\n"""搜索结束"""\n\n' : '';
-          var ctx = getKnowledge(q) + searchCtx;
+        var ctx = getKnowledge(q);
 
-          var batch = [];
-          for (var i = 0; i < 10; i++) batch.push(callAPI([q], 0.3, ctx));
-          return Promise.all(batch).then(function(answers) {
-            var counts = {};
-            answers.forEach(function(a) {
-              var ans = String(a[String(q.num)] || '').trim();
-              if (ans) counts[ans] = (counts[ans] || 0) + 1;
-            });
-            var best = '', max = 0;
-            Object.keys(counts).forEach(function(k) { if (counts[k] > max) { max = counts[k]; best = k; } });
-
-            done2++;
-            progress('仲裁 ' + done2 + '/' + disputed.length + ' 完成');
-            if (best && max >= 8) {
-              if (selectAnswer(q, best)) { totalOk++; phase2Ok++; }
-            } else {
-              unresolved.push({ q: q, best: best, count: max, counts: counts });
-            }
+        var batch = [];
+        for (var i = 0; i < 10; i++) batch.push(callAPI([q], 0.3, ctx));
+        return Promise.all(batch).then(function(answers) {
+          var counts = {};
+          answers.forEach(function(a) {
+            var ans = String(a[String(q.num)] || '').trim();
+            if (ans) counts[ans] = (counts[ans] || 0) + 1;
           });
+          var best = '', max = 0;
+          Object.keys(counts).forEach(function(k) { if (counts[k] > max) { max = counts[k]; best = k; } });
+
+          done2++;
+          progress('仲裁 ' + done2 + '/' + disputed.length + ' 完成');
+          if (best && max >= 8) {
+            if (selectAnswer(q, best)) { totalOk++; phase2Ok++; }
+          } else {
+            unresolved.push({ q: q, best: best, count: max, counts: counts });
+          }
         });
       });
 
