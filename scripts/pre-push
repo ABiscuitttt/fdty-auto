@@ -16,12 +16,16 @@ ENDPOINT="oss-cn-beijing.aliyuncs.com"
 REGION="cn-beijing"
 BUCKET="oss://fdty"
 
-echo "[oss] clearing bucket..."
-./bin/ossutil rm "$BUCKET/" -r -f -e "$ENDPOINT" --region "$REGION" || true
-echo "[oss] uploading..."
-./bin/ossutil cp fdty_top.js "$BUCKET/" -e "$ENDPOINT" --region "$REGION" -f
-./bin/ossutil cp chapters_summary.md "$BUCKET/" -e "$ENDPOINT" --region "$REGION" -f
+# 不同分支上传到不同文件夹，feat/xxx → feat-xxx
+BRANCH="$(git branch --show-current | tr '/' '-')"
+PREFIX="$BUCKET/$BRANCH"
+
+echo "[oss] clearing $PREFIX/ ..."
+./bin/ossutil rm "$PREFIX/" -r -f -e "$ENDPOINT" --region "$REGION" || true
+echo "[oss] uploading to $PREFIX/ ..."
+./bin/ossutil cp fdty_top.js "$PREFIX/" -e "$ENDPOINT" --region "$REGION" -f
+./bin/ossutil cp chapters_summary.md "$PREFIX/" -e "$ENDPOINT" --region "$REGION" -f
 for f in chapters/*.md; do
-  ./bin/ossutil cp "$f" "$BUCKET/chapters/" -e "$ENDPOINT" --region "$REGION" -f
+  ./bin/ossutil cp "$f" "$PREFIX/chapters/" -e "$ENDPOINT" --region "$REGION" -f
 done
 echo "[oss] done"
