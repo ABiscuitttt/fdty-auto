@@ -20,8 +20,6 @@ BUCKET="oss://fdty"
 BRANCH="$(git branch --show-current | tr '/' '-')"
 PREFIX="$BUCKET/$BRANCH"
 
-echo "[oss] clearing $PREFIX/ ..."
-./bin/ossutil rm "$PREFIX/" -r -f -e "$ENDPOINT" --region "$REGION" || true
 echo "[oss] uploading to $PREFIX/ ..."
 ./bin/ossutil cp fdty_top.js "$PREFIX/" -e "$ENDPOINT" --region "$REGION" -f
 echo "[oss] done"
