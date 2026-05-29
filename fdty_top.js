@@ -89,23 +89,33 @@
   }
 
   var SYSTEM_PROMPT = [
-    '你是一位复旦大学体育理论考试专业答题助手。',
+    '# 角色',
+    '复旦大学体育理论考试专业判题员。根据运动科学常识与体育规则，为每道题目给出最准确的答案。',
     '',
-    '## 知识范围',
-    '运动生理学、体能训练理论、运动规则（篮球/排球/足球/田径/游泳/击剑等）、健康体能与体质评价、运动损伤预防、民族传统体育。',
+    '# 知识覆盖领域',
+    '- 体育概论：体育概念与分类、体育功能、奥林匹克精神、高等学校体育、体育锻炼与心理健康/社会适应',
+    '- 健康体能：体能要素（心肺耐力/肌肉力量与耐力/柔韧性/身体成分）、健康体能锻炼原则',
+    '- 体质健康：健康与体质概念、亚健康状态、体质评价方法（BMI/体脂率/最大吸氧量/12分钟跑）、营养膳食、运动性疲劳与恢复',
+    '- 运动保健：运动生理反应（肌肉酸痛/极点与第二次呼吸/心血管适应）、运动损伤预防与处理（扭挫伤/肌肉拉伤/痉挛/低血糖/晕厥）、运动处方',
+    '- 田径：走跑跳投项目群、短跑与中长跑技术、立定跳远、体质健康测试',
+    '- 球类：篮球/排球/足球/羽毛球/网球/乒乓球/棒垒球/手球/气排球/高尔夫——各项目规则、基本技术、基本战术',
+    '- 游泳与救生：游泳技术（蛙泳/自由泳/仰泳/蝶泳）、专项素质训练、水中救生方法',
+    '- 形体运动：健美操/艺术体操/体育舞蹈/健美——基本技术、裁判规则、形体评价标准',
+    '- 民族传统体育：长拳/太极拳/咏春拳/剑术/木兰拳（扇）/龙舞/八段锦/防身术/射艺——技术特点与功法',
+    '- 击剑：击剑起源与发展、基本技术（花剑/重剑/佩剑）、战术类型、比赛规则与场地器材',
     '',
-    '## 答题步骤',
-    '1. 仔细阅读题目，识别考点属于哪个知识领域',
-    '2. 结合运动科学常识和体育规则进行推理判断',
-    '3. 检查题干中是否有绝对化用词（"完全""绝不""一定""所有"），该类表述通常为错误',
-    '4. 涉及具体年份、数据、百分比的事实题，严格对照已知知识点',
-    '5. 注意否定词和双重否定，避免被题干迷惑',
-    '6. 给出最终答案',
+    '# 判题原则',
+    '1. 常识推理：运用运动科学常识与体育规则进行推理判断；涉及具体数字、年份、人名的题目基于最合理的常识推理作答',
+    '2. 绝对化判断：题干中出现"完全""绝不""一定""所有""从不"等绝对化用词时，通常为错误表述。但公认事实类绝对陈述（如"奥林匹克格言是更快更高更强"）属于正确——需结合语境判断',
+    '3. 否定识别：识别题干中的否定词（"不""非""无""没有"）和双重否定结构，避免因误读否定而答反',
+    '4. 规则标准：运动规则类题目以最新国际通用比赛规则和中国现行规则为准',
+    '5. 必出答案：遇到不确定的题目，基于最合理推理给出答案，不得输出空值、"不确定"或跳过任何题目',
     '',
-    '## 输出格式',
-    '是非题回答"对"或"错"，单选题回答字母A/B/C/D。',
-    '只输出纯JSON，不要markdown包裹，不要解释。',
-    '示例: {"1":"对","2":"错","3":"C"}'].join('\n');
+    '# 输出格式',
+    '仅输出JSON对象，键为题号（数字字符串），值为答案字符串。',
+    '判断题："对"或"错"；单选题：大写字母A/B/C/D。',
+    '示例: {"1":"对","2":"错","3":"C"}',
+    '错误示例（禁止）：{"1":"正确"} ← 必须用"对"而非"正确"；{"1":"True"} ← 必须用中文"对"；{"1":"c"} ← 必须用大写字母'].join('\n');
 
   var panel = doc.getElementById('Panel3');
   if (!panel) { log('Panel3 not found'); return; }
@@ -158,123 +168,13 @@
 
   questions.sort(function(a, b) { return a.num - b.num; });
 
-  // ============ 加载章节摘要 ============
-  var CHAPTERS_URL = 'https://fdty.oss-cn-beijing.aliyuncs.com/chapters_summary.md';
-  var chaptersData = null;
-  var relevanceMap = null;
-
-  function fetchChapters() {
-    return fetch(CHAPTERS_URL).then(function(r) {
-      if (!r.ok) throw new Error('HTTP ' + r.status);
-      return r.text();
-    }).then(function(text) {
-      chaptersData = parseSummary(text);
-      log('加载 ' + chaptersData.length + ' 章知识库', '#1a73e8');
-    }).catch(function() {
-      log('知识库加载失败，使用无上下文模式');
-    });
-  }
-
-  function parseSummary(text) {
-    var blocks = text.split(/\n---\n/);
-    var chapters = [];
-    blocks.forEach(function(block) {
-      var h2 = block.match(/^## (.+\.md)/m);
-      var bold = block.match(/^\*\*(.+?)\*\*/m);
-      var quote = block.match(/^> (.+)/m);
-      var secs = [];
-      var secMatch;
-      var secRe = /^  - (.+)$/gm;
-      while ((secMatch = secRe.exec(block)) !== null) {
-        secs.push(secMatch[1]);
-      }
-      if (bold) {
-        chapters.push({
-          id: h2 ? h2[1] : '',
-          title: bold[1],
-          summary: quote ? quote[1] : '',
-          sections: secs
-        });
-      }
-    });
-    return chapters;
-  }
-
-  function buildChapterIndex() {
-    return chaptersData.map(function(ch) {
-      return '## ' + ch.id + '\n摘要: ' + ch.summary + '\n章节: ' + ch.sections.join(', ');
-    }).join('\n\n');
-  }
-
-  function phase0Mapping() {
-    if (!chaptersData) return Promise.resolve(null);
-    log('Phase 0: 分析章节相关性...', '#1a73e8');
-    progress('Phase 0 分析中...');
-
-    var userContent = '"""章节大纲"""\n' + buildChapterIndex() +
-      '\n\n"""题目列表"""\n' + questions.map(function(q) {
-        return '[' + q.num + '] ' + q.text;
-      }).join('\n');
-
-    var body = JSON.stringify({
-      model: 'deepseek-v4-flash',
-      temperature: 0.1,
-      thinking: { type: 'disabled' },
-      max_tokens: 2048,
-      response_format: { type: 'json_object' },
-      messages: [
-        { role: 'system', content: [
-          '你是大学体育理论考试出题分析师。任务：根据题目内容，判断每道题出自教材的哪个章节。',
-          '',
-          '## 步骤',
-          '1. 阅读题目，识别其考查的知识点',
-          '2. 在章节大纲中匹配最相关的1-2个章节',
-          '3. 输出关联结果',
-          '',
-          '## 规则',
-          '- 每道题标记1-2个最相关的章节文件名',
-          '- 只输出JSON，不要任何解释或markdown',
-          '- 格式: {"题号":["文件名1.md","文件名2.md"]}',
-          '- 示例: {"1":["第一章_体育概论与体育锻炼.md"],"2":["第六章_球类运动.md","第五章_田径.md"]}'
-        ].join('\n') },
-        { role: 'user', content: userContent }
-      ]
-    });
-
-    return fetch(API_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + API_KEY },
-      body: body
-    }).then(function(r) { return r.json(); })
-      .then(function(d) {
-        var content = (d.choices[0].message.content || '').trim();
-        try { return JSON.parse(content); } catch(e) { return null; }
-      }).catch(function() { return null; });
-  }
-
-  var fullChapters = {};
-
-  function getKnowledge(q) {
-    if (!relevanceMap) return '';
-    var ids = relevanceMap[String(q.num)];
-    if (!ids || !ids.length) return '';
-    var parts = [];
-    ids.forEach(function(id) {
-      var text = fullChapters[id];
-      if (text) parts.push(text.substring(0, 4000));
-    });
-    return parts.length ? '"""教材参考"""\n' + parts.join('\n\n---\n\n') + '\n"""教材参考结束"""\n\n' : '';
-  }
-
-  // ============ API 调用 ============
-  function buildUserPrompt(qs, context) {
-    context = context || '';
-    return context + qs.map(function(q) {
+  function buildUserPrompt(qs) {
+    return qs.map(function(q) {
       return '[' + q.num + '] (' + (q.type === 'tf' ? '判' : '选') + ') ' + q.text;
     }).join('\n');
   }
 
-  function callAPI(qs, temp, context) {
+  function callAPI(qs, temp) {
     var body = JSON.stringify({
       model: 'deepseek-v4-flash',
       temperature: temp,
@@ -284,7 +184,7 @@
       response_format: { type: 'json_object' },
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
-        { role: 'user', content: buildUserPrompt(qs, context) }
+        { role: 'user', content: buildUserPrompt(qs) }
       ]
     });
 
@@ -324,17 +224,15 @@
 
   // ============ Phase 1 & 2 ============
   function startVoting() {
-    log(questions.length + ' 题 每题3票 | 并发窗口=' + MAX_CONCURRENCY +
-      (relevanceMap ? ' (RAG)' : ''), '#1a73e8');
+    log(questions.length + ' 题 每题3票 | 并发窗口=' + MAX_CONCURRENCY, '#1a73e8');
 
     var totalOk = 0;
     var done1 = 0;
     var temps = [0.1, 0.6, 1.2];
 
     concurrentMap(questions, MAX_CONCURRENCY, function(q) {
-      var ctx = getKnowledge(q);
       var batch = [];
-      for (var i = 0; i < 3; i++) batch.push(callAPI([q], temps[i], ctx));
+      for (var i = 0; i < 3; i++) batch.push(callAPI([q], temps[i]));
       return Promise.all(batch).then(function(answers) {
         var counts = {};
         answers.forEach(function(a) {
@@ -370,10 +268,8 @@
       var unresolved = [];
       var phase2Ok = 0;
       return concurrentMap(disputed, MAX_CONCURRENCY, function(q) {
-        var ctx = getKnowledge(q);
-
         var batch = [];
-        for (var i = 0; i < 10; i++) batch.push(callAPI([q], 0.3, ctx));
+        for (var i = 0; i < 10; i++) batch.push(callAPI([q], 0.3));
         return Promise.all(batch).then(function(answers) {
           var counts = {};
           answers.forEach(function(a) {
@@ -414,32 +310,5 @@
   }
 
   // ============ 启动 ============
-  function loadFullChapters(map) {
-    if (!map) return Promise.resolve();
-    var ids = {};
-    Object.keys(map).forEach(function(k) {
-      (map[k] || []).forEach(function(id) { ids[id] = true; });
-    });
-    var needed = Object.keys(ids);
-    if (!needed.length) return Promise.resolve();
-    progress('加载教材章节...');
-    return Promise.all(needed.map(function(id) {
-      var url = 'https://fdty.oss-cn-beijing.aliyuncs.com/chapters/' + id;
-      return fetch(url).then(function(r) { return r.text(); }).then(function(t) {
-        fullChapters[id] = t;
-      }).catch(function() {});
-    })).then(function() {
-      log('加载 ' + Object.keys(fullChapters).length + ' 章教材内容');
-    });
-  }
-
-  fetchChapters().then(function() {
-    return phase0Mapping();
-  }).then(function(map) {
-    relevanceMap = map;
-    return loadFullChapters(map);
-  }).then(function() {
-    clearProgress();
-    startVoting();
-  });
+  startVoting();
 })();
