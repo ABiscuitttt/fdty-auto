@@ -216,6 +216,8 @@
     var totalOk = 0;
     var done1 = 0;
     var temps = [0.1, 0.6, 1.2];
+    var unresolved = [];
+    var phase2Ok = 0;
 
     concurrentMap(questions, MAX_CONCURRENCY, function(q) {
       var batch = [];
@@ -252,8 +254,6 @@
       var done2 = 0;
       log('Phase 2 仲裁 ' + disputed.length + ' 题 (每题10次)...', '#e37400');
 
-      var unresolved = [];
-      var phase2Ok = 0;
       return concurrentMap(disputed, MAX_CONCURRENCY, function(q) {
         var batch = [];
         for (var i = 0; i < 10; i++) batch.push(callAPI([q], 0.3));
